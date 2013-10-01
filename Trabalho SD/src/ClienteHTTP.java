@@ -41,8 +41,10 @@ public class ClienteHTTP {
 		// Conteúdo da Resposta HTTP
 		while ((line= reader.readLine())!=null){
 			System.out.println(i+" "+line);
-			i++;
+			i++;			
 		}
+		System.out.println(" : Ultima Linha");
+		
 		sc.close();
 	}
 }

@@ -27,9 +27,9 @@ public class SpiderSearch {
 	}
 	
 	public void viewHosts() {
-		System.out.println("Imprimindo HashSet...............");
+		//System.out.println("Imprimindo HashMap...............");
 		for (Link link : hostsVisitados.values()) {
-		    System.out.println(link.getLink());
+		    //System.out.println(link.getLink());
 		}
 	}
 	
@@ -46,7 +46,7 @@ public class SpiderSearch {
 			if (hostsVisitados.containsKey(link.getLink())){
 				return;
 			}
-			
+			System.out.println(link.getLink());
 			String host = "";
 			String path = "";
 			boolean isHtml = false;
@@ -83,7 +83,7 @@ public class SpiderSearch {
 				}
 				if (resposta.contains("Content-Type: text/html")) {
 					isHtml = true;
-					System.out.println("É html");
+//					System.out.println("É html");
 				}
 				contador++;
 			}
@@ -97,7 +97,7 @@ public class SpiderSearch {
 						MatchResult matchResult = matcher.toMatchResult();
 						String s = matchResult.group(1).toString();
 						if (!s.matches("javascript:.*|mailto:.*|https:.*|ftp:.*|file:.*")) {
-							System.out.println(i+" "+ s);						
+//							System.out.println(i+" "+ s);						
 							if (s.startsWith(linkBase.getLink())) {
 								Link linkFilho = new Link();
 								linkFilho.setLink(s);
