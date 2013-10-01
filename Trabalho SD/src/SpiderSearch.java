@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 public class SpiderSearch {
 	private final String CRLF = "\r\n";
 	private HashMap<String,Link> hostsVisitados;
+	private Pattern patternUrlBase;
 	private Pattern patternUrl;
 	private Pattern patternHref;
 	private Pattern patternResponseHttp;
@@ -21,10 +22,12 @@ public class SpiderSearch {
 	
 	public SpiderSearch() {
 		hostsVisitados = new HashMap<String,Link>();
-		patternUrl = Pattern.compile("http://(.*?)(/.*/$|/$|/.*?\\..*?$)");
+		patternUrl = Pattern.compile("http://(.*?)(/.*/$|/$|/.*?\\..*?$|/.*)");
+		patternUrlBase = Pattern.compile("http://(.*?)(/.*/$|/$)");
 		patternHref = Pattern.compile("href=\"(.*?)\"");
 		patternResponseHttp = Pattern.compile("HTTP/[0-9]\\.[0-9] ([0-9]{3}) ");
 	}
+	
 	
 	public void viewHosts() {
 		//System.out.println("Imprimindo HashMap...............");
@@ -33,62 +36,71 @@ public class SpiderSearch {
 		}
 	}
 	
+	public void validarLink(Link link){
+		Matcher matcherUrl = patternUrl.matcher(link.getUrl());
+		if (matcherUrl.find()) {
+			link.setHost(matcherUrl.group(1).toString());
+			link.setPath(matcherUrl.group(2).toString());
+		} else {
+			System.out.println("URL com formato incorreto! " + link.getUrl());
+			return;
+		}
+		search(link);
+	}
+	
 	public void searchLink(String url) {
 		linkBase = new Link();
-		linkBase.setLink(url);
-		linkBase.setPai(url);
+		linkBase.setUrl(url);
+		linkBase.setPai("sitebase");
 		linkBase.setLinha(0);
+		linkBase.setTipoRequisicao("GET");
+		Matcher matcherUrlBase = patternUrlBase.matcher(linkBase.getUrl());
+		if (matcherUrlBase.find()) {
+			linkBase.setHost(matcherUrlBase.group(1).toString());
+			linkBase.setPath(matcherUrlBase.group(2).toString());
+		}else {
+			System.out.println("URL base com formato incorreto! ");
+			return;
+		}
 		search(linkBase);
 	}
 	
 	public void search (Link link) {
 		try {
-			if (hostsVisitados.containsKey(link.getLink())){
+			if (hostsVisitados.containsKey(link.getUrl())){
 				return;
 			}
-			System.out.println(link.getLink());
-			String host = "";
-			String path = "";
+			System.out.println(link.getUrl());
 			boolean isHtml = false;
-			Matcher matcherUrl = patternUrl.matcher(link.getLink());
-			if (matcherUrl.find()) {
-				host = matcherUrl.group(1).toString();
-				path = matcherUrl.group(2).toString();
-				System.out.println(host);
-				System.out.println(path);
-			} else {
-				System.out.println("URL com formato incorreto!");
-				return;
-			}
-			hostsVisitados.put(link.getLink(), link);
+			hostsVisitados.put(link.getUrl(), link);
 			
-			Socket sc = new Socket(host, 80);
+			Socket sc = new Socket(link.getHost(), 80);
 			OutputStream os = sc.getOutputStream();
 			InputStream is = sc.getInputStream();
-			String head = "GET " + path + " HTTP/1.1" + CRLF;
-			String hostHttp = "Host:" + host + CRLF;
+			String head = link.getTipoRequisicao() + " " + link.getPath() + " HTTP/1.1" + CRLF;
+			String hostHttp = "Host:" + link.getHost() + CRLF;
 			String msg = head + hostHttp + CRLF;
 			
 			os.write(msg.getBytes());
 			BufferedReader reader = new BufferedReader(new InputStreamReader(is));
 			String resposta;
 			
-			//Cabeçalho HTTP
+			//Cabeï¿½alho HTTP
 			int contador = 0;
 			while ((resposta = reader.readLine()).length()!=0){
 				if (!resposta.contains("200 OK") && contador == 0) {
 					Matcher matcherResponseHttp = patternResponseHttp.matcher(resposta);
 					matcherResponseHttp.find();
-					System.out.println(link.getLink()+" "+matcherResponseHttp.group(1).toString()+" "+link.getPai()+" "+link.getLinha());
+					System.out.println(link.getUrl()+" "+matcherResponseHttp.group(1).toString()+" "+link.getPai()+" "+link.getLinha());
 				}
 				if (resposta.contains("Content-Type: text/html")) {
 					isHtml = true;
-//					System.out.println("É html");
+//					System.out.println("ï¿½ html");
 				}
 				contador++;
 			}
 			
-			//Conteúdo de Resposta HTTP
+			//Conteï¿½do de Resposta HTTP
 			int i = 1;
 			if (isHtml) {
 				while ((resposta= reader.readLine())!=null){
@@ -98,21 +110,50 @@ public class SpiderSearch {
 						String s = matchResult.group(1).toString();
 						if (!s.matches("javascript:.*|mailto:.*|https:.*|ftp:.*|file:.*")) {
 //							System.out.println(i+" "+ s);						
-							if (s.startsWith(linkBase.getLink())) {
+							if (s.startsWith(linkBase.getUrl())) {
 								Link linkFilho = new Link();
-								linkFilho.setLink(s);
-								linkFilho.setPai(link.getLink());
+								linkFilho.setUrl(s);
+								linkFilho.setPai(link.getUrl());
 								linkFilho.setLinha(i);
-								search(linkFilho);
-							} else if (s.startsWith("./")) {
+								linkFilho.setTipoRequisicao("GET");
+								validarLink(linkFilho);
+							} else if (s.startsWith("/")) {
 								Pattern patternLink = Pattern.compile("(http://.*/)");
-								Matcher matcherLink = patternLink.matcher(link.getLink());
+								Matcher matcherLink = patternLink.matcher(link.getUrl());
 								matcherLink.find();
 								Link linkFilho = new Link();
-								linkFilho.setLink(matcherLink.group(1).toString()+s.substring(2, s.length()));
-								linkFilho.setPai(link.getLink());
+								linkFilho.setUrl(linkBase.getUrl() + s.substring(1, s.length()));
+								linkFilho.setPai(link.getUrl());
 								linkFilho.setLinha(i);
-								search(linkFilho);
+								linkFilho.setTipoRequisicao("GET");
+								validarLink(linkFilho);
+							} else if (s.startsWith("./")) {
+								Pattern patternLink = Pattern.compile("(http://.*/)");
+								Matcher matcherLink = patternLink.matcher(link.getUrl());
+								matcherLink.find();
+								Link linkFilho = new Link();
+								linkFilho.setUrl(matcherLink.group(1).toString()+s.substring(2, s.length()));
+								linkFilho.setPai(link.getUrl());
+								linkFilho.setLinha(i);
+								linkFilho.setTipoRequisicao("GET");
+								validarLink(linkFilho);
+							} else if (s.startsWith("../")) {
+								Pattern patternLink = Pattern.compile("(http://.*/).*?/");
+								Matcher matcherLink = patternLink.matcher(link.getUrl());
+								matcherLink.find();
+								Link linkFilho = new Link();
+								linkFilho.setUrl(matcherLink.group(1).toString()+s.substring(3, s.length()));
+								linkFilho.setPai(link.getUrl());
+								linkFilho.setLinha(i);
+								linkFilho.setTipoRequisicao("GET");
+								validarLink(linkFilho);
+							} else{
+								Link linkFilho = new Link();
+								linkFilho.setUrl(s);
+								linkFilho.setPai(link.getUrl());
+								linkFilho.setLinha(i);
+								linkFilho.setTipoRequisicao("HEAD");
+								validarLink(linkFilho);
 							}
 						} 
 					}
