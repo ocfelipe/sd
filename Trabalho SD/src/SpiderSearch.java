@@ -3,6 +3,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.HashMap;
@@ -22,27 +23,19 @@ public class SpiderSearch {
 	
 	public SpiderSearch() {
 		hostsVisitados = new HashMap<String,Link>();
-		patternUrl = Pattern.compile("http://(.*?)(/.*/$|/$|/.*?\\..*?$|/.*)");
+		patternUrl = Pattern.compile("http://(.*?)(/.*/$|/$|/.*?\\..*?$|/.*|$)");
 		patternUrlBase = Pattern.compile("http://(.*?)(/.*/$|/$)");
 		patternHref = Pattern.compile("href=\"(.*?)\"");
 		patternResponseHttp = Pattern.compile("HTTP/[0-9]\\.[0-9] ([0-9]{3}) ");
-	}
-	
-	
-	public void viewHosts() {
-		//System.out.println("Imprimindo HashMap...............");
-		for (Link link : hostsVisitados.values()) {
-		    //System.out.println(link.getLink());
-		}
 	}
 	
 	public void validarLink(Link link){
 		Matcher matcherUrl = patternUrl.matcher(link.getUrl());
 		if (matcherUrl.find()) {
 			link.setHost(matcherUrl.group(1).toString());
-			link.setPath(matcherUrl.group(2).toString());
+			link.setPath(matcherUrl.group(2).toString().equals("") ? "/" : matcherUrl.group(2).toString());
 		} else {
-			System.out.println("URL com formato incorreto! " + link.getUrl());
+			System.out.println("URL com formato incorreto: " + link.getUrl());
 			return;
 		}
 		search(link);
@@ -59,22 +52,25 @@ public class SpiderSearch {
 			linkBase.setHost(matcherUrlBase.group(1).toString());
 			linkBase.setPath(matcherUrlBase.group(2).toString());
 		}else {
-			System.out.println("URL base com formato incorreto! ");
+			System.out.println("URL base com formato incorreto!");
 			return;
 		}
 		search(linkBase);
 	}
 	
 	public void search (Link link) {
+		Socket sc;
 		try {
 			if (hostsVisitados.containsKey(link.getUrl())){
 				return;
 			}
-			System.out.println(link.getUrl());
+//			System.out.println(link.getUrl());
 			boolean isHtml = false;
 			hostsVisitados.put(link.getUrl(), link);
 			
-			Socket sc = new Socket(link.getHost(), 80);
+			sc = new Socket();
+			sc.connect(new InetSocketAddress(link.getHost(), 80), 0);
+			sc.setSoTimeout(5000);
 			OutputStream os = sc.getOutputStream();
 			InputStream is = sc.getInputStream();
 			String head = link.getTipoRequisicao() + " " + link.getPath() + " HTTP/1.1" + CRLF;
@@ -85,7 +81,7 @@ public class SpiderSearch {
 			BufferedReader reader = new BufferedReader(new InputStreamReader(is));
 			String resposta;
 			
-			//Cabeï¿½alho HTTP
+			//Cabeçalho HTTP
 			int contador = 0;
 			while ((resposta = reader.readLine()).length()!=0){
 				if (!resposta.contains("200 OK") && contador == 0) {
@@ -95,12 +91,11 @@ public class SpiderSearch {
 				}
 				if (resposta.contains("Content-Type: text/html")) {
 					isHtml = true;
-//					System.out.println("ï¿½ html");
 				}
 				contador++;
 			}
 			
-			//Conteï¿½do de Resposta HTTP
+			//Conteúdo de Resposta HTTP
 			int i = 1;
 			if (isHtml) {
 				while ((resposta= reader.readLine())!=null){
@@ -147,7 +142,19 @@ public class SpiderSearch {
 								linkFilho.setLinha(i);
 								linkFilho.setTipoRequisicao("GET");
 								validarLink(linkFilho);
-							} else{
+							} else if (s.matches("[^./h#].*")) {
+								Pattern patternLink = Pattern.compile("(http://.*/)");
+								Matcher matcherLink = patternLink.matcher(link.getUrl());
+								matcherLink.find();
+								Link linkFilho = new Link();
+								linkFilho.setUrl(matcherLink.group(1).toString()+s);
+								linkFilho.setPai(link.getUrl());
+								linkFilho.setLinha(i);
+								linkFilho.setTipoRequisicao("GET");
+								validarLink(linkFilho); 
+							} else if(s.startsWith("#")) {
+								return;
+							} else {
 								Link linkFilho = new Link();
 								linkFilho.setUrl(s);
 								linkFilho.setPai(link.getUrl());
@@ -159,15 +166,15 @@ public class SpiderSearch {
 					}
 					i++;
 				}
-			}
-			else {
+				sc.close();
+			} else {
 				sc.close();
 			}
 			sc.close();
 		} catch (UnknownHostException e) {
-			e.printStackTrace();
+			//e.printStackTrace();
 		} catch (IOException e) {
-			e.printStackTrace();
+			//e.printStackTrace();
 		}
 	}
 }

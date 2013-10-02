@@ -13,7 +13,7 @@ import java.net.UnknownHostException;
 public class ClienteHTTP {
 
 	public static void main(String[] args) throws UnknownHostException, IOException, InterruptedException {
-		Socket sc = new Socket("computer.howstuffworks.com", 80);
+		Socket sc = new Socket("www.brasil.gov.br", 80);
         OutputStream os = sc.getOutputStream();
         InputStream is = sc.getInputStream();
                 
@@ -21,8 +21,8 @@ public class ClienteHTTP {
         
 		//----------- Envio da requisi��o HTTP
         
-	    String get = "GET /c.htm/printable HTTP/1.1" + CRLF;
-	    String host = "Host:computer.howstuffworks.com" + CRLF;
+	    String get = "HEAD / HTTP/1.1" + CRLF;
+	    String host = "Host:www.brasil.gov.br" + CRLF;
 	    String msg = get + host + CRLF;
 	        
 	    os.write(msg.getBytes());
